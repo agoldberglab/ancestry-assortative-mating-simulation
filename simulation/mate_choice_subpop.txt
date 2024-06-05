@@ -1,0 +1,8 @@
+3: mateChoice(p3) {
+    low_pref = 1/(THETA+1);
+    phenotype = individual.x;
+    others = sourceSubpop.individuals.x;
+    delta = abs(phenotype - others);
+    w = ifelse(delta == 0, 1-low_pref, low_pref);	
+    return weights * w;
+}

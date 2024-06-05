@@ -1,0 +1,110 @@
+initialize() {
+	
+    initializeSLiMOptions(keepPedigrees=T, dimensionality="x");
+    initializeTreeSeq();
+
+    lines = readFile(RECOMBINATION_RATE_FILE);
+    ends = NULL;
+    rates = NULL;
+
+    for (line in lines) {
+        components = strsplit(line, ",");
+        ends = c(ends, asInteger(components[0]));
+        rates = c(rates, asFloat(components[1]));
+    }
+	
+    initializeMutationRate(0);
+    initializeMutationType("m1", 0.5, "f", 0.0);
+    initializeGenomicElementType("g1", m1, 1.0);
+    initializeGenomicElement(g1, 0, ends[length(ends)-1]);
+    initializeRecombinationRate(rates,ends);
+
+    system("mkdir -p", args=OUTDIR);
+
+}
+
+1 late() {
+    sim.addSubpop("p1", 1);
+    sim.addSubpop("p2", 1);
+	
+    sim.treeSeqRememberIndividuals(sim.subpopulations.individuals);
+	
+    sim.addSubpop("p3", POPULATION_SIZE);
+    m = asFloat(INITIAL_PROPORTION);
+    p3.setMigrationRates(c(p1, p2), c(m, 1-m));
+
+}
+
+2 late() {
+	if (MIGRATION_RATE > 0) {
+    m = asFloat(INITIAL_PROPORTION);
+    mig_rate = 0.01 * m;
+    mig_rate2 = 0.01-mig_rate;
+    p3.setMigrationRates(c(p1,p2), c(mig_rate, mig_rate2));
+	} 
+	else {
+	p3.setMigrationRates(c(p1, p2), c(0.0, 0.0));
+		p1.setSubpopulationSize(0);
+		p2.setSubpopulationSize(0);
+	}
+}
+
+3 early() {
+
+    groups = NULL;
+
+    for (individual in p3.individuals) {
+        groups = c(groups, unique(individual.pedigreeParentIDs));
+    }
+	
+    p3.individuals.x = groups;
+}
+
+3: early() {
+
+    g = sim.cycle-3;
+	
+    outfile = OUTDIR + "/generation" + g + ".trees";
+    sim.treeSeqOutput(outfile);
+
+    cmd = "python3 " +
+      "process_treefile.py " +
+      "--trees " + outfile + " --recombination " + RECOMBINATION_RATE_FILE + " --migration " + MIGRATION_RATE;
+    system(cmd);
+	
+    infile = OUTDIR + "/generation" + g + "_pedigree.csv";
+    lines = readFile(infile);
+
+    names = strsplit(lines[0], ",") == "ancestry0";
+    assert(sum(names) == 1);
+    col = (1:length(names))[names] - 1;
+
+    lines = lines[2:length(lines)-1];
+    ancestry0 = NULL;
+	
+    for (line in lines) {
+        components = strsplit(line, ",");
+        ancestry0 = c(ancestry0, asFloat(components[col]));
+    }
+	
+    p3.individuals.tagF = ancestry0;
+}
+
+## BEGIN GENERATED CONTENT
+## END GENERATED CONTENT
+
+3: modifyChild(p3) {
+    if (parent1 == parent2)
+        return F;
+    child.x = parent1.x;
+    return T;
+}
+
+1: late() {
+    if (sim.cycle == N_GENERATIONS+3)
+        sim.simulationFinished();
+}
+
+1000 late() {
+    sim.simulationFinished();
+}

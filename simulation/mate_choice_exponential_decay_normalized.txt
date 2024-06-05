@@ -1,0 +1,11 @@
+3: mateChoice(p3) {
+    phenotype = individual.tagF;
+    others = sourceSubpop.individuals.tagF;
+    delta = abs(phenotype - others);
+    sigma = sd(others);
+    if (sigma > 0)
+        w = exp((-ALPHA * delta) / sd(others));
+    else
+        w = 1;
+    return weights * w;
+}
