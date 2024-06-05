@@ -290,18 +290,13 @@ data <- summary_data %>%
   filter(!is.na(example), generation %in% generations_shown) %>%
   arrange(example, model) %>%
   mutate(x = c(0.78, 1.78, 2.23, 2.78, 3.23, 3.78, 4.23),
-         lab = paste(symbol_theta, " =", theta),
-         q95 = c(28.9760, 30.8218, 33.1188, 32.1948, 33.6738, 41.7796, 40.9466),
-         lambda = (timing_0+1) * contribution_0,
-         exp_mean = 1/lambda*100,
-         exp_q95 = -log(1-0.95)/lambda*100)
-
-data <- data %>%
-  select(x, tracts_mean, exp_mean, q95, exp_q95, model, theta, parent_corr, lab) %>%
-  pivot_longer(cols = tracts_mean:exp_q95, values_to = "length") %>%
-  mutate(stat = case_when(name %in% c("tracts_mean", "exp_mean") ~ "mean",
+         lab = paste(symbol_theta, " =", theta)) %>%
+  select(x, tracts_mean, tracts_exp_mean, tracts_q95, tracts_exp_q95,
+         model, theta, parent_corr, lab) %>%
+  pivot_longer(cols = tracts_mean:tracts_exp_q95, values_to = "length") %>%
+  mutate(stat = case_when(name %in% c("tracts_mean", "tracts_exp_mean") ~ "mean",
                           .default = "q95"),
-         group = case_when(name %in% c("tracts_mean", "q95") ~ "observed",
+         group = case_when(name %in% c("tracts_mean", "tracts_q95") ~ "observed",
                            .default = "expected")) %>%
   mutate(group = factor(group, levels = c("observed", "expected")))
 
