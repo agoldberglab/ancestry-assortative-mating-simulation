@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
-from utils import bin_data_continuous
+from utils import bin_data_continuous, calculate_summary_stats
 
 def load_tracts(outdir, generation):
     basename = outdir + '/generation' + str(generation)
@@ -14,6 +14,16 @@ def load_tracts(outdir, generation):
         return tracts
     except:
         return None
+
+def summarize_tract_lengths(tracts):
+    tracts['length_cM'] = tracts['length_cM'] * 100
+    tract_summary, tract_outliers = calculate_summary_stats(tracts['length_cM'], 'tracts')
+    if not tracts.empty:
+        tracts0 = tracts[tracts['source'] == 0]
+        tract_summary['tracts_q95'] = np.quantile(tracts0['length_cM'], 0.95)
+    else:
+        tract_summary['tracts_q95'] = np.nan
+    return tract_summary, tract_outliers
 
 def bin_tract_lengths(tracts, width=0.01):
     binned_tracts = {}
@@ -45,7 +55,7 @@ def estimate_timing_from_tract_length(tracts, width=0.01):
         p = [np.nan, np.nan, np.nan]
     else:
         p, _ = curve_fit(f, binned_tracts['length_cM'], binned_tracts['ndensity'],
-                bounds=(0,(np.inf, np.inf, 1)))
+                bounds=(0,(np.inf, np.inf, 1)), max_nfev=500)
     estimated_timing = pd.DataFrame({'timing_0':p[0]-1, 'timing_1':p[1]-1,
                                      'contribution_0':p[2],
                                      'contribution_1':1-p[2]}, index=[0])

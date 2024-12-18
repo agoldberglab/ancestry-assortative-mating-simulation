@@ -90,7 +90,8 @@ def append_labels(df, generation, args):
         model = args['mate_choice']
     labels = pd.DataFrame({'generation': generation,
         'model': model, 'theta': args['theta'],
-        'seed': args['seed'], 'migration': args['migration_rate']},
+        'seed': args['seed'], 'migration': args['migration_rate'],
+        'initial': args['initial_proportion']},
         index=df.index)
     df = pd.concat([df, labels], axis=1)
     return df

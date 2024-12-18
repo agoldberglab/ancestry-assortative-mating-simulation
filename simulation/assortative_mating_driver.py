@@ -12,7 +12,7 @@ from slim import run_slim
 from global_ancestry import (bin_global_ancestry, bin_offspring_by_ancestry, load_pedigree,
         permute_pedigree, summarize_global_ancestry, update_pedigree)
 from local_ancestry import (bin_tract_lengths, calculate_expected_length_dist,
-        estimate_timing, load_tracts)
+        estimate_timing, load_tracts, summarize_tract_lengths)
 
 def calculate_mating_weight(mate_choice, theta, args_dict):
 
@@ -89,8 +89,7 @@ def analyze_global_ancestry(args, generation):
 
 def analyze_ancestry_tracts(args, generation, chroms):
     tracts = load_tracts(args['outdir'], generation)
-    tract_summary, tract_outliers = calculate_summary_stats(tracts['length_cM'] * 100, 'tracts')
-    tract_summary['tracts_q95'] = np.quantile(tracts[tracts['source'] == 0]['length_cM']*100, 0.95)
+    tract_summary, tract_outliers = summarize_tract_lengths(tracts)
     estimated_timing, ld_decay = estimate_timing(tracts, chroms, args['seed'],
             generation, n=10000)
     q, exp_outliers = calculate_expected_length_dist(tracts,estimated_timing)
