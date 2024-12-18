@@ -13,13 +13,13 @@ plot_ancestry_histogram <- function(data, group, titles, colors, labels,
     labs(x = titles["ancestry0"],
          y = titles["proportion"]) +
     guides(fill = guide_legend(override.aes = list(alpha = 1)))
-
+  
   y <- layer_scales(plt)$y$range$range[2]
   y <- ceiling(y / 0.1) * 0.1
   ticks <- seq(0, y, length.out = 3)
   
   plt <- plt +
-    coord_cartesian(ylim = c(0, y)) +
+    coord_cartesian(default = TRUE, ylim = c(0, y)) +
     scale_y_continuous(breaks = ticks,
                        labels = scales::label_number(accuracy = 0.01))
   return(plt)
@@ -35,9 +35,9 @@ plot_psi_over_time <- function(data, generations, colors, labels) {
     scale_x_continuous(breaks = seq(0, 1, by = 0.25),
                        labels = c(0, 0.25, 0.50, 0.75, 1)) +
     scale_color_manual(values = colors,
-                       labels = label_generations(generations, short=TRUE)) +
-    labs(x = bquote(x[1]),
-         y = paste0("max(", symbol_psi, ") / min(", symbol_psi, ")")) +
+                       labels = label_generations(generations)) +
+    labs(x = bquote(x[i]),
+         y = paste0("max(", symbol_psi_i, ") / min(", symbol_psi_i, ")")) +
     guides(color = guide_legend(byrow = TRUE,
                                 override.aes = list(size = 1.2)))
   
@@ -48,15 +48,15 @@ plot_offspring_vs_ancestry <- function(data, control) {
   
   plt <- ggplot() +
     geom_ribbon(data = control,
-              aes(x = ancestry0, ymin = ymin, ymax = ymax),
-              alpha = 0.2) +
-  geom_point(data = data,
-             aes(x = ancestry0, y = proportion, color = parent)) +
-  scale_color_manual(values = c("#e41a1c", "#377eb8"),
-                     labels = c("Parent 1", "Parent 2")) +
-  labs(x = titles["ancestry0"],
-       y = titles["proportion"],
-       title = labels$model[unique(as.character(data$model))])
+                aes(x = ancestry0, ymin = ymin, ymax = ymax),
+                alpha = 0.2) +
+    geom_point(data = data,
+               aes(x = ancestry0, y = proportion, color = parent)) +
+    scale_color_manual(values = c("#e41a1c", "#377eb8"),
+                       labels = c("Parent 1", "Parent 2")) +
+    labs(x = titles["ancestry0"],
+         y = titles["proportion"],
+         title = labels$model[unique(as.character(data$model))])
   
   return(plt)
 }
@@ -101,12 +101,12 @@ plot_parent_correlation <- function(data, geom, ...) {
   
   rho <- sprintf("%0.2f", cor(data$parent1_ancestry0, data$parent2_ancestry0))
   n <- format(nrow(data), big.mark = ",")
+  n <- tibble(x = 0.32, y = 0.3, lab = paste0("n = ", n, " individuals"))
   
   plt <- ggplot(data = data,
                 mapping = aes(x = parent1_ancestry0, y = parent2_ancestry0)) +
-    labs(x = titles['parent1_ancestry0'], y = titles['parent2_ancestry0'],
-        # title = labels$model[unique(as.character(data$model))],
-         subtitle = paste0("r = ", rho, " (n = ", n, ")")) +
+    labs(x = titles$parent1_ancestry0, y = titles$parent2_ancestry0,
+         subtitle = bquote(.(titles$parent_corr)~"="~.(rho))) +
     coord_cartesian(xlim = lims, ylim = lims) +
     scale_x_continuous(breaks = seq(lims[1], lims[2], 0.1)) +
     scale_y_continuous(breaks = seq(lims[1], lims[2], 0.1))
@@ -125,13 +125,18 @@ plot_parent_correlation <- function(data, geom, ...) {
                                    theme = theme(legend.ticks = element_blank())))
   }
   
+  plt <- plt +
+    geom_abline(slope = 1, intercept = 0, color = "#BDBDBD", linewidth = 0.3) +
+    geom_text(data = n, aes(x = x, y = y, label = lab),
+              family = "Avenir Next", size = 8/.pt, hjust = "left")
+  
   return(plt)
   
 }
 
 
 plot_correlation_figure <- function(pedigree, geom, examples, models, n) {
-
+  
   panels <- list()
   
   counter <- 0
@@ -173,12 +178,12 @@ plot_ancestry_psi <- function(data, titles, values, labels) {
     geom_path() +
     scale_color_manual(values = values$theta, labels = labels$theta) +
     scale_linetype_manual(values = values$generation,
-                          labels = label_generations(seq(3), short=TRUE)) +
+                          labels = label_generations(seq(3))) +
     scale_x_continuous(breaks = seq(0, 1, by = 0.25),
                        labels = c(0, 0.25, 0.50, 0.75, 1)) +
     labs(x = titles$xi, y = titles$psi,
-        # title = labels$short_model[as.character(unique(data$model))],
-         subtitle = bquote(x[1] == .(x1_shown[x])))
+         # title = labels$short_model[as.character(unique(data$model))],
+         subtitle = bquote(x[i] == .(x1_shown[x])))
   
   if (unique(data$model) == "exponential_decay_normalized") {
     plt <- plt +
@@ -195,8 +200,8 @@ plot_social_psi <- function(data, titles, values, labels) {
   plt <- ggplot(data = data,
                 mapping = aes(x = social_group, y = psi, fill = theta)) +
     geom_col(position = "dodge") +
-    scale_x_discrete(labels = c("same" = bquote(s[1]==s[i]),
-                                "different" = bquote(s[1]!=s[i]))) +
+    scale_x_discrete(labels = c("same" = bquote(s[i]==s[j]),
+                                "different" = bquote(s[i]!=s[j]))) +
     scale_fill_manual(values = values$theta, labels = labels$theta) +
     labs(x = titles['social_group'], y = titles$psi)
   
@@ -225,24 +230,25 @@ plot_ancestry_histogram_over_time <- function(simulation_id, generations_shown) 
   plts <- list()
   for (g in generations_shown) {
     
+    v <- summary_data %>%
+      filter(simulation == simulation_id, generation == g) %>%
+      pull(ancestry0_var) %>%
+      sprintf(fmt = "%0.04f", .)
+    
     data <- binned_ancestry0 %>%
       filter(simulation == simulation_id, generation == g, subpop == "all")
     
     plt <-  data %>%
       plot_ancestry_histogram(., "model", titles, values$model, labels$model) +
       guides(fill = "none") +
-      labs(title = paste0("Gen. ", g)) +
-      theme_manuscript()
+      labs(title = paste0("t = ", g),
+           subtitle = paste0(symbol_sigma, " = ", v)) +
+      theme_manuscript() +
+      theme(plot.subtitle = element_markdown(size = 6))
     
-    y <- layer_scales(plt)$y$range$range[2]
-    y <- ceiling(y / 0.1) * 0.1
-    ticks <- seq(0, y, length.out = 3)
+    plts[[g]] <- plt
     
-    plts[[g]] <- plt + coord_cartesian(ylim = c(0, y)) +
-      scale_y_continuous(breaks = ticks,
-                         labels = scales::label_number(accuracy = 0.01))
-  
-    }
+  }
   
   fig <- cowplot::plot_grid(plotlist = plts, ncol = 4)
   
@@ -265,8 +271,8 @@ plot_estimated_vs_true_time <- function(example) {
     filter(example %in% c(1, !!example), generation > 1, generation <= 20) %>%
     plot_variable_over_time(., "timing_0", "model", titles,
                             values, labels) +
+    labs(x = "True t", title = bquote(.(titles$parent_corr)~"="~.(rho))) +
     theme_manuscript() +
-    ggtitle(paste("r =", rho)) +
     guides(linetype = "none")
   
   return(plt)
@@ -276,7 +282,7 @@ plot_estimated_vs_true_time <- function(example) {
 
 
 plot_ancestry_hist_by_theta <- function(model, thetas, generation, migration,
-                                        seed) {
+                                        initial, seed) {
   
   plts <- list()
   
@@ -284,6 +290,7 @@ plot_ancestry_hist_by_theta <- function(model, thetas, generation, migration,
     
     sim_shown <- quo(model == !!model & theta == thetas[t] &
                        seed == !!seed & migration == !!migration &
+                       initial == !!initial &
                        generation == !!generation)
     
     data <- binned_ancestry0 %>%
@@ -296,9 +303,11 @@ plot_ancestry_hist_by_theta <- function(model, thetas, generation, migration,
       pull(parent_corr) %>%
       round(., digits = 2)
     
+    rho <- sprintf(fmt = "%0.02f", rho + 0)
+    
     plts[[t]] <- plot_ancestry_histogram(data, "model", titles, values$model,
                                          labels$model) +
-      labs(title = title, subtitle = paste0("r = ", rho)) +
+      labs(title = title, subtitle = bquote(.(titles$parent_corr)~"="~ .(rho))) +
       guides(fill = "none") +
       theme_manuscript() +
       theme(plot.title = element_markdown())
@@ -310,22 +319,23 @@ plot_ancestry_hist_by_theta <- function(model, thetas, generation, migration,
   
 }
 
-plot_discrepancy_in_timing <- function(data, values, labels) {
+plot_discrepancy_in_timing <- function(data, generation, values, labels) {
   
-  rho <- data %>%
-    select(parent_corr) %>%
-    deframe()
+  rho <- cor(data[[as.name(paste0('parent_corr_', generation))]],
+             data$timing_discrepancy_20)
+  rho <- sprintf(fmt = "%0.02f", rho)
   
   plt <- data %>%
-    mutate(rho = rho) %>%
-    ggplot(aes(x = rho, y = timing_discrepancy, color = model)) +
+    ggplot(aes(x =.data[[paste0('parent_corr_', generation)]],
+               y = timing_discrepancy_20, color = model)) +
     geom_point() +
-    scale_color_manual(values = values$model, labels = labels$model)
+    scale_color_manual(values = values$model, labels = labels$model) +
+    labs(title = paste0("r = ", rho))
   
   return(plt)
 }
 
-plot_mating_pairs_hurricane <- function(data) {
+plot_mating_pairs_hurricane <- function(data, ...) {
   
   data <- data %>%
     arrange(delta) %>%
@@ -333,11 +343,12 @@ plot_mating_pairs_hurricane <- function(data) {
   
   plt <- ggplot(data = data,
                 aes(x = parent1_ancestry0, xend = parent2_ancestry0, y = n)) +
-    geom_segment(linewidth = 0.05)
+    geom_segment(...)
   
   return(plt)
   
 }
+
 plot_permutation_test <- function(observed, permuted, var, pval, xlab, values,
                                   labels) {
   
@@ -357,8 +368,8 @@ plot_permutation_test <- function(observed, permuted, var, pval, xlab, values,
     geom_vline(data = summary, mapping = aes(xintercept = mu, color = x),
                key_glyph = "path") +
     labs(x = xlab, y = "Proportion of simulations",
-         subtitle = paste0("Generation ", generation,
-                           " (p = ", pval, ")")) +
+         subtitle = paste0(label_generations(generation),
+                           " (", pval, ")")) +
     scale_color_manual(values = values, labels = labels) 
   
   return(plt)
@@ -366,7 +377,11 @@ plot_permutation_test <- function(observed, permuted, var, pval, xlab, values,
 
 plot_shuffled_delta <- function(observed, permuted) {
   
-  pval <- (sum(permuted$delta_perm <= observed)+1) / nrow(permuted)
+  pval <- (sum(permuted$delta_perm <= observed)+1) / (nrow(permuted)+1)
+  
+  pval <- paste0("p = ", sprintf(fmt = "%0.03f", pval))
+  s <- case_when(pval < 1/1000 ~ "<", .default = "=")
+  pval <- paste("p", s, sprintf(fmt = "%0.03f", pval))
   
   values <- c("observed" = "#2C7FB8", "permuted" = "#636363")
   labels <- c("observed" = bquote(bar(Delta)[obs]),
@@ -378,16 +393,21 @@ plot_shuffled_delta <- function(observed, permuted) {
   return(plt)
 }
 
-plot_shuffled_rho <- function(observed, permuted) {
+plot_shuffled_rho <- function(observed, permuted, titles) {
   
-  pval <- (sum(permuted$rho_perm >= observed)+1) / nrow(permuted)
+  pval <- (sum(permuted$rho_perm >= observed)+1) / (nrow(permuted)+1)
+  s <- case_when(pval < 1/1000 ~ "<", .default = "=")
+  pval <- paste("p", s, sprintf(fmt = "%0.03f", pval))
   
   values <- c("observed" = "#2C7FB8", "permuted" = "#636363")
-  labels <- c("observed" = "r~obs~",
-              "permuted" = "r~perm~")
+  labels <- c("observed" = bquote(Observed~.(titles$parent_corr)),
+              "permuted" = bquote(Mean~permuted~.(titles$parent_corr)))
+  
   xlab <- titles$parent_corr
   
   plt <- plot_permutation_test(observed, permuted, "rho_perm", pval,
                                xlab, values, labels)
+  
+  
   return(plt)
 }

@@ -1,10 +1,10 @@
 library(tidyverse)
 library(ggtext)
 
-source("visualization/load_data.R")
-source("visualization/plot_themes.R")
-source("visualization/plot_utils.R")
-source("visualization/plotting_functions.R")
+source("scripts/load_data.R")
+source("scripts/plot_themes.R")
+source("scripts/plot_utils.R")
+source("scripts/plotting_functions.R")
 
 add_fonts()
 
@@ -15,11 +15,9 @@ lh_linewidth <- 0.6
 lh_point_size <- 1
 
 counter <- 0
-figure_directory <- "figures"
+figure_directory <- "figures/manuscript"
 
-##############################################################################
-
-# Figure 1
+#### Figure 1 ################################################################
 
 models_shown <- c("exponential_decay", "exponential_decay_normalized",
                   "normal_distribution")
@@ -81,14 +79,13 @@ panels[[4]] <- assemble_panel(plt, title = labels$model['subpop'])
 fig <- assemble_figure(panels)
 counter <- save_figure(figure_directory, fig, counter, height = 4)
 
-##############################################################################
-
-# Figure 2
+#### Figure 2 #################################################################
 
 models_shown <- models
 thetas_shown <- c(seq(2, 10, by = 2), seq(25, 100, by = 25))
 generations_shown <- seq(0, 20)
 migration_shown <- 0
+initial_shown <- 0.5
 
 plts <- list()
 
@@ -98,15 +95,17 @@ for (t in seq_along(thetas_shown)) {
     filter(model %in% models_shown,
            theta %in% c(1, thetas_shown[t]),
            generation %in% generations_shown,
-           migration %in% migration_shown) %>%
+           migration %in% migration_shown,
+           initial %in% initial_shown) %>%
     plot_variable_over_time(., "parent_corr", "model",
                             titles, values, labels) +
     theme_manuscript() +
+    scale_y_continuous(breaks = seq(0, 1, by = 0.2)) +
     coord_cartesian(ylim = c(0, 1)) +
     guides(color = guide_legend(nrow = 2, byrow = TRUE,
                                 override.aes = list(linewidth = lh_linewidth)),
            linetype = "none") +
-    labs(y = "Corr. between mates", 
+    labs(y = titles$parent_corr, 
          title = labels$theta[as.character(thetas_shown[t])]) +
     theme(plot.title = element_markdown())
   
@@ -115,124 +114,85 @@ for (t in seq_along(thetas_shown)) {
   plts[[t]] <- plt +
     theme(legend.position = "none")
 }
-  
+
 panels <- list()
 
 panels[[1]] <- assemble_panel(plts[1:3], ncol = 3)
 panels[[2]] <- assemble_panel(plts[4:6], ncol = 3)
 panels[[3]] <- assemble_panel(plts[7:9], ncol = 3)
 
-fig <- assemble_figure(panels, nrow = 3, lh = lh, show_tags = FALSE)
+fig <- assemble_figure(panels, nrow = 3, lh = lh, add_tags = FALSE)
 counter <- save_figure(figure_directory, fig, counter)
 
-##############################################################################
+#### Figure 3 #################################################################
 
-# Figure 3
+models_shown <- models
+thetas_shown <- c(1, seq(2, 10, by = 2))
+generations_shown <- c(5, 8, 12, 20)
+migration_shown <- 0
+initial_shown <- 0.5
+
+plts <- list()
+
+for (g in seq_along(generations_shown)) {
+  plt <- summary_data %>%
+    filter(model %in% models_shown,
+           theta %in% thetas_shown,
+           generation %in% generations_shown[g],
+           migration %in% migration_shown,
+           initial %in% initial_shown) %>%
+    ggplot(aes(x = parent_corr, y = ancestry0_var, color = model)) +
+    geom_point() +
+    scale_color_manual(values = values$model, labels = labels$model) +
+    labs(x = titles$parent_corr, y = titles$ancestry0_var,
+         title = label_generations(generations_shown[g])) +
+    guides(color = guide_legend(nrow = 2, byrow = TRUE,
+                                override.aes = list(size = lh_point_size))) +
+    theme_manuscript() +
+    theme(axis.title.y = element_markdown())
+  
+  y <- layer_scales(plt)$y$range$range[2]
+  y <- ceiling(y / 0.01) * 0.01
+  ticks <- seq(0, y, by = 0.05)
+  if (length(ticks) == 1) { ticks <- c(ticks, y) }
+  
+  lh <- get_legend(plt)
+  
+  plts[[g]] <- plt +
+    coord_cartesian(ylim = c(0, y)) +
+    scale_y_continuous(breaks = ticks,
+                       labels = scales::label_number(accuracy = 0.01)) +
+    theme(legend.position = "none")
+  
+}
+
+fig <- assemble_figure(plts, lh = lh, nrow = 2)
+counter <- save_figure(figure_directory, fig, counter, height = 6.5)
+
+#### Figure 4 ################################################################
 
 models_shown <- c("exponential_decay_normalized", "subpop")
 
 fig <- plot_correlation_figure(example_pedigree, geom = "hex",
                                examples = c(3, 3),
-                        models = models_shown,
-                        n = c(10000, 100))
+                               models = models_shown,
+                               n = c(10000, 100))
 
 counter <- save_figure(figure_directory, fig, counter, height = 5)
 
-##############################################################################
-
-# Figure 4
-
-models_shown <- c("exponential_decay", "exponential_decay_normalized",
-                  "normal_distribution", "subpop")
-thetas_shown <- c(1, seq(2, 10, by = 2))
-generations_shown <- seq(0, 20)
-migration_shown <- 0
-
-plts <- list()
-
-for (m in seq_along(models_shown)) {
-  
-  plt <- summary_data %>%
-    filter(model %in% c("random", models_shown[m]),
-           theta %in% thetas_shown,
-           generation %in% generations_shown,
-           migration %in% migration_shown) %>%
-    plot_variable_over_time(., "ancestry0_var", "theta",
-                            titles, values, labels) +
-    guides(linetype = "none",
-           color = guide_legend(nrow = 1, byrow = TRUE,
-                                override.aes = 
-                                  list(linewidth = lh_linewidth))) +
-    theme_manuscript()
-  
-  lh <- get_legend(plt)
-  
-  plt <- plt + theme(legend.position = "none")
-  
-  plts[[m]] <- assemble_panel(plt, title = labels$model[models_shown[m]])
-}
-
-fig <- assemble_figure(plts, lh = lh)
-counter <- save_figure(figure_directory, fig, counter, height = 6)
-
-##############################################################################
-
-# Figure 5
+#### Figure 5 ################################################################
 
 models_shown <- c("random", "exponential_decay_normalized", "subpop")
-thetas_shown <- c(1, seq(2, 10, by = 2))
+thetas_shown <- c(1, seq(2, 10))
 generations_shown <- 20
 migration_shown <- 0
-
-panels <- list()
-
-panels[[1]] <- summary_data %>%
-  filter(model %in% models_shown,
-         theta %in% thetas_shown,
-         generation %in% generations_shown,
-         migration %in% migration_shown) %>%
-  plot_correlation_vs_B(., titles, values, labels) +
-  theme_manuscript() +
-  theme(legend.position = "none",
-        axis.title.y = element_text(margin = margin(0, 14, 0, 0, unit = "pt")))
-        
-plt <- summary_data %>%
-  filter(model %in% models_shown,
-         theta %in% thetas_shown,
-         generation %in% generations_shown,
-         migration %in% migration_shown) %>%
-  ggplot(aes(x = B, y = ancestry0_var, color = model)) +
-  geom_point() +
-  scale_color_manual(values = values$model, labels = labels$model) +
-  labs(x = titles['expressed_mating_bias'], y = titles['ancestry0_var'],
-       title = "Generation 20") +
-  guides(color = guide_legend(nrow = 1, byrow = TRUE,
-                              override.aes = list(size = lh_point_size))) +
-  coord_cartesian(ylim = c(0,0.008)) +
-  theme_manuscript()
-
-lh <- get_legend(plt)
-
-panels[[2]] <- plt +
-  theme(legend.position = "none")
-
-fig <- assemble_figure(panels, ncol = 2, lh = lh)
-counter <- save_figure(figure_directory, fig, counter, height = 3.5)
-
-##############################################################################
-
-# Figure 6
-
-models_shown <- c("random", "exponential_decay_normalized", "subpop")
-thetas_shown <- c(1, seq(2, 10, by = 2))
-generations_shown <- 20
-migration_shown <- 0
+initial_shown <- 0.5
 
 data <- summary_data %>%
   filter(!is.na(example), generation %in% generations_shown) %>%
   arrange(example, model) %>%
   mutate(x = c(0.78, 1.78, 2.23, 2.78, 3.23, 3.78, 4.23),
-  lab = paste(symbol_theta, " =", theta))
+         lab = paste(symbol_theta, " =", theta))
 
 panels <- list()
 
@@ -247,26 +207,31 @@ panels[[1]] <- data %>%
                stat='identity', width = 0.8,
                position = position_dodge(preserve = "single", width = 0.9)) +
   geom_richtext(aes(x = x, label = lab), y = -0.5, family = "Avenir Next", 
-            size = 5.5 * 0.36, fill = NA, label.colour = NA) +
+                size = 5.5 * 0.36, fill = NA, label.colour = NA) +
   scale_fill_manual(values = values$model, labels = labels$model) +
-  scale_x_discrete(labels = paste("r = ", xticks)) +
+  scale_x_discrete(labels = xticks)+
   theme_manuscript() +
-  labs(x = "", y = "Tract length, cM", title = "Generation 20") +
-  theme(legend.position = "none")
+  labs(x = "", y = "Local-ancestry tract length, cM",
+       title = label_generations(20),
+       tag = bquote(.(titles$parent_corr)~"=")) +
+  theme(legend.position = "none",
+        plot.tag.position = c(0.13, 0.07),
+        plot.tag = element_text(family = "Avenir Next", size = 7))
 
 plt <- summary_data %>%
   filter(model %in% models_shown,
          theta %in% thetas_shown,
          generation %in% generations_shown,
-         migration %in% migration_shown) %>%
+         migration %in% migration_shown,
+         initial %in% initial_shown) %>%
   ggplot(mapping = aes(x = parent_corr, y = tracts_q50, color = model,
                        fill = model)) +
   geom_point(key_glyph = draw_key_rect) +
   theme_manuscript() +
   scale_color_manual(values = values$model, labels=labels$model) +
   scale_fill_manual(values = values$model, labels=labels$model) +
-  labs(x = titles['parent_corr'], y = titles['tract_median'],
-       title = "Generation 20") +
+  labs(x = titles$parent_corr, y = titles$tract_median,
+       title = label_generations(20)) +
   theme(legend.key.height = unit(0.8, "lines"),
         legend.key.width = unit(0.8, "lines"))
 
@@ -277,9 +242,7 @@ panels[[2]] <- plt + theme(legend.position = "none")
 fig <- assemble_figure(panels, lh = lh)
 counter <- save_figure(figure_directory, fig, counter, height = 3.5)
 
-##############################################################################
-
-# Figure 7
+#### Figure 6 ###############################################################
 
 models_shown <- c("random", "exponential_decay_normalized", "subpop")
 thetas_shown <- c(1, seq(2, 10, by = 2))
@@ -289,15 +252,25 @@ migration_shown <- 0
 data <- summary_data %>%
   filter(!is.na(example), generation %in% generations_shown) %>%
   arrange(example, model) %>%
-  mutate(x = c(0.78, 1.78, 2.23, 2.78, 3.23, 3.78, 4.23),
-         lab = paste(symbol_theta, " =", theta)) %>%
-  select(x, tracts_mean, tracts_exp_mean, tracts_q95, tracts_exp_q95,
-         model, theta, parent_corr, lab) %>%
-  pivot_longer(cols = tracts_mean:tracts_exp_q95, values_to = "length") %>%
-  mutate(stat = case_when(name %in% c("tracts_mean", "tracts_exp_mean") ~ "mean",
+  mutate(x = c(1, 1.78, 2.23, 2.78, 3.23, 3.78, 4.23),
+         lab = paste(symbol_theta, " =", theta),
+         q95 = c(28.9760, 30.8218, 33.1188, 32.1948, 33.6738,
+                 41.7796, 40.9466),
+         lambda = (timing_0+1) * contribution_0,
+         exp_mean = 1/lambda*100,
+         exp_q95 = -log(1-0.95)/lambda*100)
+
+data <- data %>%
+  select(x, tracts_mean, exp_mean, q95, exp_q95, model, theta,
+         parent_corr, lab) %>%
+  pivot_longer(cols = tracts_mean:exp_q95, values_to = "length") %>%
+  mutate(stat = case_when(name %in% c("tracts_mean", "exp_mean") ~ "mean",
                           .default = "q95"),
-         group = case_when(name %in% c("tracts_mean", "tracts_q95") ~ "observed",
-                           .default = "expected")) %>%
+         group = case_when(name %in% c("tracts_mean", "q95") ~ "observed",
+                           .default = "expected"),
+         lambda = 21 * 0.5,
+         y0 = case_when(stat == "mean" ~ 1/lambda*100,
+                        stat == "q95" ~ -log(1-0.95)/lambda * 100))%>%
   mutate(group = factor(group, levels = c("observed", "expected")))
 
 values$tract_length <- c("observed" = "solid", "expected" = "11")
@@ -308,20 +281,18 @@ xticks <- unique(round(data$parent_corr, digits = 2))
 xticks <- sprintf(fmt = "%0.02f", xticks + 0)
 
 stats <- c("mean", "q95")
-ylabs <- c("Mean tract length, cM", "95th percentile length, cM")
-
-lambda <- 21 * 0.5
-expected <- c(1/lambda*100, -log(1-0.95)/lambda*100)
+ylabs <- c("Mean tract length", "95th percentile of tract length")
 
 panels <- list()
 
 for (p in seq(2)) {
+  
   plt <- data %>%
     filter(stat == stats[p]) %>%
     ggplot(aes(x = x - 0.1, xend = x + 0.1, y = length, color = model,
                linetype = group)) +
     geom_segment() +
-    geom_hline(aes(yintercept = expected[p]), linetype = "dashed",
+    geom_hline(aes(yintercept = y0), linetype = "dashed",
                color = "#737373", linewidth = 0.2, alpha = 0.7) +
     geom_richtext(aes(x = x, label = lab), y = -0.5, family = "Avenir Next", 
                   size = 5.5 * 0.36, colour="black",
@@ -329,15 +300,26 @@ for (p in seq(2)) {
     scale_color_manual(values = values$model, labels = labels$model) +
     scale_linetype_manual(values = values$tract_length,
                           labels = labels$tract_length) +
-    labs(x = "", y = "Mean tract length, cM") +
-    coord_cartesian(ylim = c(0, 45)) +
+    scale_x_continuous(breaks = seq(1, 4), labels = xticks) +
+    labs(x = "", y = "Local-ancestry tract length, cM", title = ylabs[p],
+         tag = bquote(.(titles$parent_corr)~"=")) +
     guides(color = "none",
            linetype = guide_legend(nrow = 1, byrow = TRUE,
                                    override.aes =
                                      list(linewidth = lh_linewidth))) +
-    theme_manuscript()
+    theme_manuscript() +
+    theme(axis.title.y = element_text(size = 8.5),
+          plot.tag.position = c(0.05, 0.1),
+          plot.tag = element_text(family = "Avenir Next", size = 7),
+          plot.title = element_text(face = "bold"))
   
   lh <- get_legend(plt)
+  
+  if (p == 1) {
+    plt <- plt + coord_cartesian(ylim = c(0, 20))
+  } else {
+    plt <- plt + coord_cartesian(ylim = c(0, 50))
+  }
   
   panels[[p]] <- plt + theme(legend.position = "none")
   
@@ -355,7 +337,7 @@ for (e in seq_along(examples_shown)) {
 
 for (p in seq_along(panels)) {
   panels[[p]] <- assemble_panel(panels[[p]]) +
-    add_tag(LETTERS[p])
+    add_tag(letters[p])
 }
 
 lh <- summary_data %>%
@@ -374,18 +356,18 @@ lh <- summary_data %>%
 
 lh <- get_legend(lh)
 
-panelB <- assemble_figure(panels[3:5], lh = lh, nrow = 1, show_tags = FALSE)
+panelB <- assemble_figure(panels[3:5], lh = lh, nrow = 1, add_tags = FALSE)
 
-fig <- assemble_figure(list(panelA, panelB), ncol = 1, show_tags = FALSE)
-counter <- save_figure(figure_directory, fig, counter, height = 5)
-##############################################################################
+fig <- assemble_figure(list(panelA, panelB), ncol = 1, add_tags = FALSE)
+counter <- save_figure(figure_directory, fig, counter, height = 5.5)
 
-# Figure 8
+#### Figure 7 ###############################################################
 
 models_shown <- c("exponential_decay_normalized", "subpop")
 thetas_shown <- c(1, 2, 4, 10)
 generations_shown <- seq(0, 20)
 migration_shown <- c(0, 0.01)
+initial_shown <- 0.5
 
 panels <- list()
 
@@ -395,7 +377,8 @@ for (m in seq_along(models_shown)) {
     filter(model %in% c("random", models_shown[m]),
            theta %in% thetas_shown,
            generation %in% generations_shown,
-           migration %in% migration_shown) %>%
+           migration %in% migration_shown,
+           initial %in% initial_shown) %>%
     plot_variable_over_time(., "parent_corr", "theta",
                             titles, values, labels) +
     guides(color = guide_legend(byrow = TRUE,
@@ -413,7 +396,7 @@ for (m in seq_along(models_shown)) {
   
   panels[[m]] <- assemble_panel(plt) +
     add_title(labels$model[models_shown[m]])
-
+  
 }
 
 migration_shown <- 0.01
@@ -424,7 +407,8 @@ for (m in seq_along(models_shown)) {
     filter(model %in% c("random", models_shown[m]),
            theta %in% thetas_shown,
            generation %in% generations_shown,
-           migration %in% migration_shown) %>%
+           migration %in% migration_shown,
+           initial %in% initial_shown) %>%
     plot_variable_over_time(., "p_migrant_pairs", "theta",
                             titles, values, labels) +
     coord_cartesian(ylim = c(0, 0.41)) +
@@ -433,7 +417,7 @@ for (m in seq_along(models_shown)) {
   
   panels[[m+2]] <- assemble_panel(plt) +
     add_title(labels$model[models_shown[m]])
-
+  
 }
 
 fig <- assemble_figure(panels, lh = lh, ncol = 2)

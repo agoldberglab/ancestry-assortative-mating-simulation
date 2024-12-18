@@ -18,9 +18,8 @@ add_title <- function(label, size = 10) {
                      size = (size / .pt), hjust = 0.4, vjust = 1.2)
 }
 
-label_generations <- function(generation, short = FALSE) {
-  prefix <- case_when(short ~ "Gen.", .default = "Generation")
-  return(paste(prefix, generation))
+label_generations <- function(generation) {
+  return(paste0("t = ", generation))
 }
 
 define_layout <- function(subplots, nrow = NULL, ncol = NULL) {
@@ -106,7 +105,7 @@ assemble_panel <- function(plots, nrow = NULL, ncol = NULL, align_y = FALSE,
 }
 
 assemble_figure <- function(panels, nrow = NULL, ncol = NULL, lh = NULL,
-                            cb = NULL, show_tags = TRUE, bg = "#FFFFFF", ...) {
+                            cb = NULL, add_tags = TRUE, bg = "#FFFFFF", ...) {
   
   dims <- define_layout(panels, nrow, ncol)
   nrow <- dims[1]
@@ -129,10 +128,10 @@ assemble_figure <- function(panels, nrow = NULL, ncol = NULL, lh = NULL,
     panels[[p]] <- panels[[p]] +
       theme(plot.margin = margin(t = t, r = r, b = b, l = l, unit="pt"))
   
-    if (show_tags) {
+    if (add_tags) {
       
       panels[[p]] <- panels[[p]] +
-        add_tag(LETTERS[p])
+        add_tag(letters[p])
     }
   }
   
